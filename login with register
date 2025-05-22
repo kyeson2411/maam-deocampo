@@ -1,0 +1,159 @@
+from tkinter import *
+import mysql.connector
+from tkinter import messagebox
+
+def db_connection():
+    try:
+        mydb = mysql.connector.connect(
+            host="localhost",
+            user="root",
+            password="",
+            database="canillo_db"
+        )
+        return mydb
+    except mysql.connector.Error as err:
+        messagebox.showerror("Database Error", f"{err}")
+        return None
+
+def login():
+    username = entry_email.get()
+    password = entry_pass.get()
+    mydb = db_connection()
+    if not mydb:
+        return
+    mycursor = mydb.cursor()
+    sql = "SELECT role FROM users WHERE username = %s AND password = %s"
+    mycursor.execute(sql, (username, password))
+    result = mycursor.fetchone()
+    if result:
+        role = result[0]
+        if role == "admin":
+            print("Admin Access Granted")
+            admin_welcome(username)
+        elif role == "staff":
+            print("Staff Access Granted")
+            staff_welcome(username)
+    else:
+        messagebox.showerror("Login Failed", "Invalid Username or Password")
+
+def admin_welcome(username):
+    welcome_win = Toplevel()
+    welcome_win.geometry("300x200")
+    welcome_win.title("Admin")
+    welcome_win.config(padx=20, pady=20)
+
+    Label(welcome_win, text=f"Welcome, {username}!", font=('Arial', 16)).pack(pady=10)
+
+def staff_welcome(username):
+    welcome_win = Toplevel()
+    welcome_win.geometry("300x200")
+    welcome_win.title("Welcome, Staff!")
+    welcome_win.config(padx=20, pady=20)
+
+    Label(welcome_win, text=f"Welcome, {username}!", font=('Arial', 16)).pack(pady=10)
+    mydb = db_connection()
+    if mydb:
+        messagebox.showinfo("Database", "Connected to Database")
+        mydb.close()
+    else:
+        messagebox.showerror("Database", "Connection failed!")
+
+def show_register():
+    root.withdraw()
+    
+    register_win = Toplevel()
+    register_win.geometry("350x350")
+    register_win.title("Register")
+    register_win.config(padx=20, pady=20)
+    
+    nav_frame = Frame(register_win)
+    nav_frame.pack(fill=X, pady=5)
+    
+    Button(nav_frame, text="← Back to Login", command=lambda: back_to_login(register_win)).pack(side=LEFT)
+    
+    Label(register_win, text='Register New Account', font=('Arial', 16)).pack(pady=10)
+    
+    Label(register_win, text='Username:', font=('Arial', 12)).pack(anchor='w')
+    reg_username = Entry(register_win, width=30)
+    reg_username.pack(pady=5)
+    
+    Label(register_win, text='Password:', font=('Arial', 12)).pack(anchor='w')
+    reg_password = Entry(register_win, show='*', width=30)
+    reg_password.pack(pady=5)
+    
+    Label(register_win, text='Confirm Password:', font=('Arial', 12)).pack(anchor='w')
+    reg_confirm = Entry(register_win, show='*', width=30)
+    reg_confirm.pack(pady=5)
+    
+    Label(register_win, text='Role:', font=('Arial', 12)).pack(anchor='w')
+    reg_role = StringVar(value="staff")
+    Radiobutton(register_win, text="Staff", variable=reg_role, value="staff").pack(anchor='w')
+    Radiobutton(register_win, text="Admin", variable=reg_role, value="admin").pack(anchor='w')
+    
+    Button(register_win, text='Register', command=lambda: register_user(reg_username, reg_password, reg_confirm, reg_role, register_win), width=15).pack(pady=20)
+    
+    register_win.protocol("WM_DELETE_WINDOW", lambda: back_to_login(register_win))
+
+def back_to_login(window):
+    window.destroy()
+    root.deiconify()
+
+def register_user(username_entry, password_entry, confirm_entry, role_var, window):
+    username = username_entry.get()
+    password = password_entry.get()
+    confirm = confirm_entry.get()
+    role = role_var.get()
+    
+    if not username or not password or not confirm:
+        messagebox.showerror("Error", "All fields are required!")
+        return
+    
+    if password != confirm:
+        messagebox.showerror("Error", "Passwords don't match!")
+        return
+    
+    mydb = db_connection()
+    if not mydb:
+        return
+    
+    try:
+        mycursor = mydb.cursor()
+        
+        mycursor.execute("SELECT * FROM users WHERE username = %s", (username,))
+        if mycursor.fetchone():
+            messagebox.showerror("Error", "Username already exists!")
+            return
+        
+        sql = "INSERT INTO users (username, password, role) VALUES (%s, %s, %s)"
+        mycursor.execute(sql, (username, password, role))
+        mydb.commit()
+        
+        messagebox.showinfo("Success", "Registration successful!")
+        back_to_login(window)
+        
+    except mysql.connector.Error as err:
+        messagebox.showerror("Database Error", f"{err}")
+    finally:
+        mydb.close()
+
+root = Tk()
+root.geometry("350x250")
+root.title("Canillo_GUI")
+root.config(padx=20, pady=20)
+
+nav_frame = Frame(root)
+nav_frame.pack(fill=X, pady=5)
+
+Button(nav_frame, text="Register", command=show_register).pack(side=RIGHT)
+
+Label(root, text='Username:', font=('Arial', 14)).pack(anchor='w')
+entry_email = Entry(root, width=30)
+entry_email.pack(pady=5)
+
+Label(root, text='Password:', font=('Arial', 14)).pack(anchor='w')
+entry_pass = Entry(root, show='*', width=30)
+entry_pass.pack(pady=5)
+
+Button(root, text='Login', command=login, width=10).pack(pady=20)
+
+root.mainloop()
